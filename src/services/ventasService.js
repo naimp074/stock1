@@ -19,10 +19,14 @@ export async function crearVenta({ cliente, items }) {
     0
   );
 
+  // Obtener el usuario actual
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Usuario no autenticado');
+
   // 1) Insertar venta
   const { data: venta, error } = await supabase
     .from('ventas')
-    .insert([{ cliente: cliente || null, total, items }])
+    .insert([{ cliente: cliente || null, total, items, user_id: user.id }])
     .select()
     .single();
   if (error) throw error;

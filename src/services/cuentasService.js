@@ -11,9 +11,13 @@ export async function listarCuentas() {
 }
 
 export async function crearCuenta({ cliente }) {
+  // Obtener el usuario actual
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Usuario no autenticado');
+
   const { data, error } = await supabase
     .from('cuentas_corrientes')
-    .insert([{ cliente }])
+    .insert([{ cliente, user_id: user.id }])
     .select()
     .single();
   if (error) throw error;
@@ -34,9 +38,13 @@ export async function listarMovimientos(cuenta_id, limit = 100) {
 
 /** tipo: 'cargo' (debe) o 'pago' (haber) */
 export async function registrarMovimiento({ cuenta_id, tipo, monto, concepto }) {
+  // Obtener el usuario actual
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Usuario no autenticado');
+
   const { data, error } = await supabase
     .from('pagos_corrientes')
-    .insert([{ cuenta_id, tipo, monto: Number(monto || 0), concepto: concepto || null }])
+    .insert([{ cuenta_id, tipo, monto: Number(monto || 0), concepto: concepto || null, user_id: user.id }])
     .select()
     .single();
   if (error) throw error;

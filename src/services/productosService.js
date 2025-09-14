@@ -13,7 +13,14 @@ export async function listarProductos() {
 
 /** CREAR (NO mandar id para que Postgres genere UUID por defecto) */
 export async function crearProducto(producto) {
-  const toInsert = { ...producto };
+  // Obtener el usuario actual
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Usuario no autenticado');
+
+  const toInsert = { 
+    ...producto,
+    user_id: user.id // Agregar el user_id del usuario logueado
+  };
   delete toInsert.id; // clave: no enviar id vacío
 
   const { data, error } = await supabase
@@ -52,6 +59,10 @@ export async function eliminarProducto(id) {
 
 /** IMPORTACIÓN MASIVA desde Excel (insert en lote) */
 export async function guardarProductosMasivo(productos) {
+  // Obtener el usuario actual
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Usuario no autenticado');
+
   const aInsertar = productos.map((p) => ({
     nombre: (p.nombre || '').trim(),
     precio_costo: Number(p.precio_costo ?? p.costo ?? 0),
@@ -60,6 +71,7 @@ export async function guardarProductosMasivo(productos) {
     proveedor: p.proveedor || null,
     telefono: p.telefono || null,
     imagen: p.imagen || null,
+    user_id: user.id, // Agregar el user_id del usuario logueado
   }));
 
   if (aInsertar.length === 0) return [];
