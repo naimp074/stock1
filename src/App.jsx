@@ -3,6 +3,7 @@ import Login from "./features/auth/Login";
 import StockPage from "./features/stock/StockPage";
 import VentasPage from "./features/ventas/VentasPage";
 import ReportesPage from "./features/reportes/ReportesPage";
+import NotasCreditoPage from "./features/notas-credito/NotasCreditoPage";
 import { useAuth } from "./context/AuthContext";
 import Navbar from "./components/Navbar";
 import Container from "react-bootstrap/Container";
@@ -25,6 +26,7 @@ function App() {
           <Route path="/ventas" element={<VentasPage />} />
           <Route path="/cuentacorriente" element={<CuentaCorriente />} />
           <Route path="/reportes" element={<ReportesPage />} />
+          <Route path="/notas-credito" element={<NotasCreditoPage />} />
         </Routes>
       </Container>
     </>

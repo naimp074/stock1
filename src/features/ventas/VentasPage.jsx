@@ -12,9 +12,14 @@ const VentasPage = () => {
   const [ventas, setVentas] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [cliente, setCliente] = useState('');
-  const [carrito, setCarrito] = useState([]); // [{id, nombre, precio_venta, cantidad}]
-  const [cantidades, setCantidades] = useState({}); // { [productId]: number }
+  const [carrito, setCarrito] = useState([]);
+  const [cantidades, setCantidades] = useState({});
   const [cargando, setCargando] = useState(true);
+
+  // Número de factura persistente en localStorage
+  const [numeroFactura, setNumeroFactura] = useState(() => {
+    return Number(localStorage.getItem('numeroFactura') || 1);
+  });
 
   useEffect(() => {
     (async () => {
@@ -80,7 +85,6 @@ const VentasPage = () => {
       ];
     });
 
-    // limpiar cantidad de la fila
     setCantidades(prev => ({ ...prev, [prod.id]: 0 }));
   }
 
@@ -100,7 +104,7 @@ const VentasPage = () => {
         Swal.fire('⚠️ Carrito vacío', 'Agrega productos antes de vender', 'warning');
         return;
       }
-      // Validar stock actual (por si cambió)
+
       for (const it of carrito) {
         const prod = productos.find(p => p.id === it.id);
         if (!prod) throw new Error('Producto no encontrado');
@@ -111,7 +115,7 @@ const VentasPage = () => {
 
       const venta = await crearVenta({ cliente, items: carrito });
 
-      // Descontar en UI también
+      // Actualizar stock
       setProductos(prev =>
         prev.map(p => {
           const it = carrito.find(x => x.id === p.id);
@@ -120,29 +124,52 @@ const VentasPage = () => {
         })
       );
 
-      // Generar factura PDF
-      generarFacturaPDF({ cliente, items: carrito, total });
+      // Guardar factura PDF
+      generarFacturaPDF({ cliente, items: carrito, total, numeroFactura });
 
-      // Limpiar
+      // Actualizar ventas con número de factura
+      const nuevaVenta = {
+        ...venta,
+        numeroFactura,
+      };
+      setVentas(v => [nuevaVenta, ...v]);
+
+      // Incrementar número de factura
+      const siguiente = numeroFactura + 1;
+      setNumeroFactura(siguiente);
+      localStorage.setItem('numeroFactura', siguiente);
+
+      // Resetear carrito y cliente
       setCarrito([]);
       setCliente('');
-      setVentas(v => [venta, ...v]);
 
-      Swal.fire('✅ Venta realizada', 'Se registró la venta y se generó la factura', 'success');
+      // Mostrar resumen de dinero ingresado
+      Swal.fire({
+        title: '✅ Venta realizada',
+        html: `
+          <div class="text-center">
+            <p><strong>Factura Nº ${numeroFactura}</strong></p>
+            <p>Cliente: ${cliente || 'Consumidor Final'}</p>
+            <p class="h4 text-success">Dinero ingresado: $${total.toFixed(2)}</p>
+            <small class="text-muted">Los datos se actualizarán automáticamente en Reportes</small>
+          </div>
+        `,
+        icon: 'success',
+        confirmButtonText: 'Continuar'
+      });
     } catch (e) {
       console.error(e);
       Swal.fire('❌ Error', e.message || 'No se pudo registrar la venta', 'error');
     }
   }
 
-  function generarFacturaPDF({ cliente, items, total }) {
+  function generarFacturaPDF({ cliente, items, total, numeroFactura }) {
     const doc = new jsPDF();
 
     const fecha = new Date();
     const vencimiento = new Date(fecha);
     vencimiento.setDate(vencimiento.getDate() + 7);
 
-    // Encabezado
     doc.setFontSize(16);
     doc.text('FACTURA', 14, 20);
 
@@ -151,7 +178,7 @@ const VentasPage = () => {
     doc.text(cliente || 'Consumidor Final', 40, 35);
 
     doc.text('Factura Nº:', 140, 30);
-    doc.text(`${Math.floor(Math.random() * 1000000)}`, 180, 30);
+    doc.text(`${numeroFactura}`, 180, 30);
 
     doc.text('Fecha:', 140, 36);
     doc.text(fecha.toLocaleDateString('es-AR'), 180, 36);
@@ -162,7 +189,6 @@ const VentasPage = () => {
     doc.text('Estado del pago:', 140, 48);
     doc.text('Pagado', 180, 48);
 
-    // Tabla de items
     const cuerpo = (items || []).map((it, idx) => [
       idx + 1,
       it.nombre,
@@ -183,11 +209,9 @@ const VentasPage = () => {
 
     const y = doc.lastAutoTable.finalY;
 
-    // Totales
     doc.setFontSize(12);
     doc.text(`Total: $ ${Number(total).toLocaleString('es-AR')}`, 150, y + 10);
 
-    // Detalle de pago (dummy)
     doc.setFontSize(11);
     doc.text('Método de pago:', 14, y + 20);
     doc.text('Cash:', 14, y + 30);
@@ -199,7 +223,27 @@ const VentasPage = () => {
     doc.text('Cantidad adeudada:', 14, y + 50);
     doc.text('$ 0,00', 50, y + 50);
 
-    doc.save('factura.pdf');
+    doc.save(`factura_${numeroFactura}.pdf`);
+  }
+
+  // Función para generar factura de una venta existente
+  function generarFacturaVentaExistente(venta) {
+    try {
+      const numeroFactura = venta.numeroFactura || venta.id;
+      const fechaVenta = new Date(venta.fecha);
+      
+      generarFacturaPDF({
+        cliente: venta.cliente,
+        items: venta.items || [],
+        total: venta.total,
+        numeroFactura: numeroFactura
+      });
+      
+      Swal.fire('✅ Factura generada', `Factura Nº ${numeroFactura} descargada`, 'success');
+    } catch (error) {
+      console.error('Error generando factura:', error);
+      Swal.fire('❌ Error', 'No se pudo generar la factura', 'error');
+    }
   }
 
   return (
@@ -331,22 +375,61 @@ const VentasPage = () => {
           </Table>
         </div>
 
+        {/* Resumen de dinero ingresado */}
+        <div className="row g-3 mb-4">
+          <div className="col-md-4">
+            <Card className="p-3 bg-success text-white">
+              <div className="text-center">
+                <h6>Dinero Ingresado Hoy</h6>
+                <h4>${ventas
+                  .filter(v => {
+                    const hoy = new Date();
+                    const fechaVenta = new Date(v.fecha);
+                    return fechaVenta.toDateString() === hoy.toDateString();
+                  })
+                  .reduce((acc, v) => acc + Number(v.total || 0), 0)
+                  .toFixed(2)}
+                </h4>
+              </div>
+            </Card>
+          </div>
+          <div className="col-md-4">
+            <Card className="p-3 bg-primary text-white">
+              <div className="text-center">
+                <h6>Total de Ventas</h6>
+                <h4>${ventas.reduce((acc, v) => acc + Number(v.total || 0), 0).toFixed(2)}</h4>
+              </div>
+            </Card>
+          </div>
+          <div className="col-md-4">
+            <Card className="p-3 bg-info text-white">
+              <div className="text-center">
+                <h6>Número de Ventas</h6>
+                <h4>{ventas.length}</h4>
+              </div>
+            </Card>
+          </div>
+        </div>
+
         {/* Historial simple */}
         <h5>Últimas ventas</h5>
         <div className="table-responsive">
           <Table striped bordered hover size="sm">
             <thead>
               <tr>
+                <th>Factura Nº</th>
                 <th>Fecha</th>
                 <th>Cliente</th>
                 <th className="text-end">Total</th>
                 <th>Items</th>
+                <th className="text-center">Acción</th>
               </tr>
             </thead>
             <tbody>
               {ventas.length ? (
                 ventas.map(v => (
                   <tr key={v.id}>
+                    <td>{v.numeroFactura || '—'}</td>
                     <td>{new Date(v.fecha).toLocaleString()}</td>
                     <td>{v.cliente || '—'}</td>
                     <td className="text-end">${Number(v.total || 0).toFixed(2)}</td>
@@ -355,10 +438,20 @@ const VentasPage = () => {
                         <div key={i}>{it.nombre} x {it.cantidad}</div>
                       ))}
                     </td>
+                    <td className="text-center">
+                      <Button
+                        size="sm"
+                        variant="outline-primary"
+                        onClick={() => generarFacturaVentaExistente(v)}
+                        title="Generar factura PDF"
+                      >
+                        📄 Factura
+                      </Button>
+                    </td>
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="4" className="text-center">Sin ventas</td></tr>
+                <tr><td colSpan="6" className="text-center">Sin ventas</td></tr>
               )}
             </tbody>
           </Table>

@@ -31,6 +31,9 @@ const Navbar = () => {
             <Nav.Link as={Link} to="/cuentacorriente" className="nav-link-custom">
               Cuenta Corriente
             </Nav.Link>
+            <Nav.Link as={Link} to="/notas-credito" className="nav-link-custom">
+              📦 Notas de Crédito
+            </Nav.Link>
           </Nav>
 
           {/* Usuario y logout */}
