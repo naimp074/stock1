@@ -394,7 +394,7 @@ const NotasCreditoPage = () => {
                               <td>
                                 {(venta.items || []).map((item, idx) => (
                                   <span key={idx} className="badge bg-secondary me-1">
-                                    {item.nombre} x{item.cantidad}
+                                    {item.nombre} x{item.cantidad} {item.unidad || 'unidad'}
                                   </span>
                                 ))}
                               </td>
@@ -539,7 +539,7 @@ const NotasCreditoPage = () => {
                 <thead>
                   <tr>
                     <th>Producto</th>
-                    <th className="text-end">Cantidad</th>
+                    <th className="text-end">Cantidad/Unidad</th>
                     <th className="text-end">Precio</th>
                     <th className="text-end">Total</th>
                     <th className="text-center">Acción</th>
@@ -549,7 +549,7 @@ const NotasCreditoPage = () => {
                   {items.map((item, index) => (
                     <tr key={index}>
                       <td>{item.nombre}</td>
-                      <td className="text-end">{item.cantidad}</td>
+                      <td className="text-end">{item.cantidad} {item.unidad || 'unidad'}</td>
                       <td className="text-end">${item.precio_venta.toFixed(2)}</td>
                       <td className="text-end">${(item.cantidad * item.precio_venta).toFixed(2)}</td>
                       <td className="text-center">

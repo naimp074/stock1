@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS public.productos (
   direccion text,
   imagen text,
   categoria text,
+  unidad text NOT NULL DEFAULT 'unidad',
   activo boolean NOT NULL DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),

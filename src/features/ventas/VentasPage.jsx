@@ -435,7 +435,9 @@ const VentasPage = () => {
                     <td className="text-end">${Number(v.total || 0).toFixed(2)}</td>
                     <td>
                       {(v.items || []).map((it, i) => (
-                        <div key={i}>{it.nombre} x {it.cantidad}</div>
+                        <div key={i}>
+                          {it.nombre} x {it.cantidad} {it.unidad || 'unidad'}
+                        </div>
                       ))}
                     </td>
                     <td className="text-center">

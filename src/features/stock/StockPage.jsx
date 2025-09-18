@@ -21,6 +21,7 @@ const StockPage = () => {
     costo: '',
     venta: '',
     cantidad: '',
+    unidad: 'unidad',
     proveedor: '',
     telefono: '',
     imagen: '',
@@ -58,6 +59,7 @@ const StockPage = () => {
         precio_costo: Number(nuevoProducto.costo || 0),
         precio_venta: Number(nuevoProducto.venta || 0),
         cantidad: Number(nuevoProducto.cantidad || 0),
+        unidad: nuevoProducto.unidad || 'unidad',
         proveedor: nuevoProducto.proveedor || null,
         telefono: nuevoProducto.telefono || null,
         imagen: nuevoProducto.imagen || null,
@@ -175,6 +177,7 @@ const StockPage = () => {
       costo: p?.precio_costo ?? '',
       venta: p?.precio_venta ?? '',
       cantidad: p?.cantidad ?? '',
+      unidad: p?.unidad || 'unidad',
       proveedor: p?.proveedor ?? '',
       telefono: p?.telefono ?? '',
       imagen: p?.imagen ?? '',
@@ -236,6 +239,28 @@ const StockPage = () => {
                 value={nuevoProducto.cantidad}
                 onChange={handleChange}
               />
+            </Form.Group>
+            <Form.Group className="mb-2">
+              <Form.Label>Unidad</Form.Label>
+              <Form.Select
+                name="unidad"
+                value={nuevoProducto.unidad}
+                onChange={handleChange}
+              >
+                <option value="unidad">Unidad</option>
+                <option value="kg">Kilogramo (kg)</option>
+                <option value="L">Litro (L)</option>
+                <option value="m">Metro (m)</option>
+                <option value="cm">Centímetro (cm)</option>
+                <option value="m²">Metro cuadrado (m²)</option>
+                <option value="m³">Metro cúbico (m³)</option>
+                <option value="g">Gramo (g)</option>
+                <option value="ml">Mililitro (ml)</option>
+                <option value="caja">Caja</option>
+                <option value="paquete">Paquete</option>
+                <option value="docena">Docena</option>
+                <option value="par">Par</option>
+              </Form.Select>
             </Form.Group>
             <Form.Group className="mb-2">
               <Form.Label>Proveedor</Form.Label>
@@ -315,6 +340,7 @@ const StockPage = () => {
                   <th>Precio Costo</th>
                   <th>Precio Venta</th>
                   <th>Cantidad</th>
+                  <th>Unidad</th>
                   <th>Proveedor</th>
                   <th>Teléfono</th>
                   <th>Acciones</th>
@@ -334,6 +360,7 @@ const StockPage = () => {
                     <td>{Number(prod.precio_costo || 0)}</td>
                     <td>{Number(prod.precio_venta || 0)}</td>
                     <td>{Number(prod.cantidad || 0)}</td>
+                    <td>{prod.unidad || 'unidad'}</td>
                     <td>{prod.proveedor || ''}</td>
                     <td>{prod.telefono || ''}</td>
                     <td>
