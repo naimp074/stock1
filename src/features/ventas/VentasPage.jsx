@@ -113,7 +113,7 @@ const VentasPage = () => {
         }
       }
 
-      const venta = await crearVenta({ cliente, items: carrito });
+      const venta = await crearVenta({ cliente, items: carrito, numeroFactura });
 
       // Actualizar stock
       setProductos(prev =>
@@ -248,7 +248,7 @@ const VentasPage = () => {
 
   return (
     <Container>
-      <Card className="p-3 shadow">
+      <Card className="p-3 shadow" style={{ background: '#23272b', color: '#fff', border: '1px solid #23272b' }}>
         <h1>Ventas</h1>
 
         {/* Búsqueda y cliente */}
@@ -412,52 +412,62 @@ const VentasPage = () => {
         </div>
 
         {/* Historial simple */}
-        <h5>Últimas ventas</h5>
-        <div className="table-responsive">
-          <Table striped bordered hover size="sm">
-            <thead>
-              <tr>
-                <th>Factura Nº</th>
-                <th>Fecha</th>
-                <th>Cliente</th>
-                <th className="text-end">Total</th>
-                <th>Items</th>
-                <th className="text-center">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ventas.length ? (
-                ventas.map(v => (
-                  <tr key={v.id}>
-                    <td>{v.numeroFactura || '—'}</td>
-                    <td>{new Date(v.fecha).toLocaleString()}</td>
-                    <td>{v.cliente || '—'}</td>
-                    <td className="text-end">${Number(v.total || 0).toFixed(2)}</td>
-                    <td>
-                      {(v.items || []).map((it, i) => (
-                        <div key={i}>
-                          {it.nombre} x {it.cantidad} {it.unidad || 'unidad'}
-                        </div>
-                      ))}
-                    </td>
-                    <td className="text-center">
-                      <Button
-                        size="sm"
-                        variant="outline-primary"
-                        onClick={() => generarFacturaVentaExistente(v)}
-                        title="Generar factura PDF"
-                      >
-                        📄 Factura
-                      </Button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr><td colSpan="6" className="text-center">Sin ventas</td></tr>
-              )}
-            </tbody>
-          </Table>
-        </div>
+          <h5>Últimas ventas</h5>
+          <div className="table-responsive">
+            <Table striped bordered hover size="sm">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Factura Nº</th>
+                  <th>Concepto</th>
+                  <th>Tipo</th>
+                  <th className="text-end">Subtotal</th>
+                  <th className="text-end">Descuento</th>
+                  <th className="text-end">Total</th>
+                  <th className="text-center">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ventas.length ? (
+                  ventas.map(v => {
+                    // Calcular subtotal, descuento y total
+                    const subtotal = (v.items || []).reduce((acc, it) => acc + Number(it.precio_venta || 0) * Number(it.cantidad || 0), 0);
+                    // Si no existe descuento, mostrar 0%
+                    const descuentoPorcentaje = v.descuento_porcentaje || 0;
+                    const descuentoMonto = v.descuento_monto || 0;
+                    // Si el modelo guarda solo porcentaje, calcular monto
+                    const descuentoCalculado = descuentoMonto || (subtotal * (descuentoPorcentaje / 100));
+                    const total = subtotal - descuentoCalculado;
+                    return (
+                      <tr key={v.id}>
+                        <td>{new Date(v.fecha).toLocaleString()}</td>
+                        <td>{v.numeroFactura || '—'}</td>
+                        <td>Compra de productos ({(v.items || []).length} ítem{(v.items || []).length === 1 ? '' : 's'})</td>
+                        <td>cargo</td>
+                        <td className="text-end">${subtotal.toFixed(2)}</td>
+                        <td className="text-end">
+                          {descuentoPorcentaje ? `${descuentoPorcentaje}% (-$${descuentoCalculado.toFixed(2)})` : '0%'}
+                        </td>
+                        <td className="text-end">${total.toFixed(2)}</td>
+                        <td className="text-center">
+                          <Button
+                            size="sm"
+                            variant="outline-primary"
+                            onClick={() => generarFacturaVentaExistente(v)}
+                            title="Generar factura PDF"
+                          >
+                            📄 Factura
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr><td colSpan="8" className="text-center">Sin ventas</td></tr>
+                )}
+              </tbody>
+            </Table>
+          </div>
       </Card>
     </Container>
   );

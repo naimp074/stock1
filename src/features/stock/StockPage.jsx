@@ -14,6 +14,16 @@ import {
 
 const StockPage = () => {
   const [productos, setProductos] = useState([]);
+  const [busqueda, setBusqueda] = useState('');
+  // Filtrar productos según búsqueda
+  const productosFiltrados = productos.filter(p => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (p?.nombre || '').toLowerCase().includes(q) ||
+      (p?.proveedor || '').toLowerCase().includes(q)
+    );
+  });
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
   const [nuevoProducto, setNuevoProducto] = useState({
@@ -188,7 +198,19 @@ const StockPage = () => {
 
   return (
     <Container fluid>
-      <Card className="p-3 shadow">
+  <Card className="p-3 shadow">
+        {/* Buscador de productos */}
+        <Form className="mb-3">
+          <Form.Group>
+            <Form.Label>Buscar producto</Form.Label>
+            <Form.Control
+              type="text"
+              placeholder="Nombre o proveedor"
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+            />
+          </Form.Group>
+        </Form>
         <h1>Gestión de Stock</h1>
 
         {!mostrarFormulario && (
@@ -347,7 +369,7 @@ const StockPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {productos.map((prod, index) => (
+                {productosFiltrados.map((prod, index) => (
                   <tr key={prod.id || index}>
                     <td>
                       {prod.imagen ? (

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { obtenerYActualizarNumeroFactura } from './facturaGlobalService';
 
 /** CUENTAS */
 export async function listarCuentas() {
@@ -37,7 +38,12 @@ export async function listarMovimientos(cuenta_id, limit = 100) {
 }
 
 /** tipo: 'cargo' (debe) o 'pago' (haber) */
-export async function registrarMovimiento({ cuenta_id, tipo, monto, concepto, factura, descuento }) {
+export async function registrarMovimiento({ cuenta_id, tipo, monto, concepto, factura, descuento, items }) {
+  // Obtener el número de factura global automáticamente si no se pasa uno
+  let numeroFactura = factura;
+  if (!numeroFactura) {
+    numeroFactura = await obtenerYActualizarNumeroFactura();
+  }
   // Obtener el usuario actual
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Usuario no autenticado');
@@ -53,8 +59,10 @@ export async function registrarMovimiento({ cuenta_id, tipo, monto, concepto, fa
       tipo, 
       monto: Number(monto || 0), 
       concepto: concepto || null, 
-      factura: factura || null,
+      factura: numeroFactura,
+      numero_factura: numeroFactura,
       descuento: descuento || 0,
+      items: items || null, // Guardar los items como JSON
       user_id: user.id 
     }])
     .select()
@@ -278,6 +286,121 @@ export async function actualizarMovimiento(movimientoId, datos) {
     return data[0];
   } catch (error) {
     console.error('Error actualizando movimiento:', error);
+    throw error;
+  }
+}
+
+/** Obtener clientes que terminaron de pagar (saldo = 0) */
+export async function obtenerClientesPagados() {
+  try {
+    const cuentas = await obtenerSaldosPorCuenta();
+    return cuentas.filter(c => Math.abs(Number(c.saldo || 0)) < 0.01); // Tolerancia para decimales
+  } catch (error) {
+    console.error('Error obteniendo clientes pagados:', error);
+    return [];
+  }
+}
+
+/** Obtener siguiente número de factura */
+export async function obtenerSiguienteNumeroFactura() {
+  try {
+    console.log('Obteniendo siguiente número de factura...');
+    
+    // Obtener el último número de factura de ventas
+    const { data: ultimaVenta, error: errorVentas } = await supabase
+      .from('ventas')
+      .select('numero_factura')
+      .not('numero_factura', 'is', null)
+      .order('numero_factura', { ascending: false })
+      .limit(1);
+
+    if (errorVentas) {
+      console.error('Error obteniendo última factura de ventas:', errorVentas);
+    }
+
+    // Obtener el último número de factura de cuenta corriente
+    const { data: ultimaFacturaCC, error: errorCC } = await supabase
+      .from('pagos_corrientes')
+      .select('numero_factura')
+      .not('numero_factura', 'is', null)
+      .not('numero_factura', 'eq', '')
+      .order('numero_factura', { ascending: false })
+      .limit(1);
+
+    if (errorCC) {
+      console.error('Error obteniendo última factura de cuenta corriente:', errorCC);
+    }
+
+    // Encontrar el número más alto entre ventas y cuenta corriente
+    let ultimoNumero = 0;
+    
+    if (ultimaVenta && ultimaVenta.length > 0) {
+      ultimoNumero = Math.max(ultimoNumero, Number(ultimaVenta[0].numero_factura) || 0);
+      console.log('Última factura de ventas:', ultimaVenta[0].numero_factura);
+    }
+    
+    if (ultimaFacturaCC && ultimaFacturaCC.length > 0) {
+      ultimoNumero = Math.max(ultimoNumero, Number(ultimaFacturaCC[0].numero_factura) || 0);
+      console.log('Última factura de cuenta corriente:', ultimaFacturaCC[0].numero_factura);
+    }
+
+    // También verificar localStorage como fallback
+    const numeroLocalStorage = Number(localStorage.getItem('numeroFactura') || 0);
+    ultimoNumero = Math.max(ultimoNumero, numeroLocalStorage);
+    console.log('Número de localStorage:', numeroLocalStorage);
+
+    const siguienteNumero = ultimoNumero + 1;
+    console.log('Siguiente número de factura:', siguienteNumero);
+    
+    return siguienteNumero;
+  } catch (error) {
+    console.error('Error obteniendo siguiente número de factura:', error);
+    // Fallback con timestamp
+    return Date.now();
+  }
+}
+
+/** Generar factura para cliente pagado */
+export async function generarFacturaClientePagado(cuentaId, numeroFactura) {
+  try {
+    // Obtener movimientos de la cuenta
+    const movimientos = await listarMovimientos(cuentaId, 1000);
+    
+    if (!movimientos || movimientos.length === 0) {
+      throw new Error('No se encontraron movimientos para esta cuenta');
+    }
+
+    // Obtener información de la cuenta
+    const { data: cuenta, error: errorCuenta } = await supabase
+      .from('cuentas_corrientes')
+      .select('cliente')
+      .eq('id', cuentaId)
+      .single();
+
+    if (errorCuenta) throw errorCuenta;
+
+    // Actualizar TODOS los movimientos de cargo con el número de factura
+    const movimientosCargo = movimientos.filter(m => m.tipo === 'cargo');
+    for (const movimiento of movimientosCargo) {
+      await actualizarMovimiento(movimiento.id, {
+        numero_factura: numeroFactura
+      });
+    }
+
+    return {
+      cliente: cuenta.cliente,
+      movimientos,
+      numeroFactura,
+      total: movimientos.reduce((acc, m) => {
+        const sign = m.tipo === 'pago' ? -1 : 1;
+        const montoReal = m.descuento
+          ? Number(m.monto) - (Number(m.monto) * Number(m.descuento)) / 100
+          : Number(m.monto);
+        return acc + sign * montoReal;
+      }, 0)
+    };
+  } catch (error) {
+    console.error('Error generando factura para cliente pagado:', error);
     throw error;
   }
 }

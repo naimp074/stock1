@@ -1,4 +1,15 @@
 -- =====================================================
+-- 10. TABLA DE CONFIGURACIÓN GLOBAL
+-- =====================================================
+CREATE TABLE IF NOT EXISTS public.configuracion (
+  clave text PRIMARY KEY,
+  valor text
+);
+
+-- Inicializar el contador de facturas si no existe
+INSERT INTO public.configuracion (clave, valor) VALUES ('ultima_factura', '0')
+  ON CONFLICT (clave) DO NOTHING;
+-- =====================================================
 -- ESQUEMA ACTUALIZADO DE TUCKY2
 -- =====================================================
 -- Basado en el esquema existente con mejoras necesarias
@@ -31,6 +42,8 @@ CREATE TABLE IF NOT EXISTS public.pagos_corrientes (
   user_id uuid NOT NULL,
   concepto text,
   factura text,
+  numero_factura integer,
+  items jsonb DEFAULT '[]'::jsonb,
   tipo text NOT NULL DEFAULT 'cargo'::text CHECK (tipo = ANY (ARRAY['cargo'::text, 'pago'::text])),
   CONSTRAINT pagos_corrientes_pkey PRIMARY KEY (id),
   CONSTRAINT pagos_corrientes_cuenta_id_fkey FOREIGN KEY (cuenta_id) REFERENCES public.cuentas_corrientes(id) ON DELETE CASCADE,
@@ -105,6 +118,7 @@ CREATE INDEX IF NOT EXISTS idx_ventas_cliente ON public.ventas(cliente);
 CREATE INDEX IF NOT EXISTS idx_ventas_tipo ON public.ventas(tipo);
 CREATE INDEX IF NOT EXISTS idx_ventas_estado ON public.ventas(estado);
 CREATE INDEX IF NOT EXISTS idx_ventas_numero_factura ON public.ventas(numero_factura);
+CREATE INDEX IF NOT EXISTS idx_pagos_corrientes_numero_factura ON public.pagos_corrientes(numero_factura);
 
 -- Índices para cuentas corrientes
 CREATE INDEX IF NOT EXISTS idx_cuentas_corrientes_user_id ON public.cuentas_corrientes(user_id);
