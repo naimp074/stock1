@@ -544,13 +544,13 @@ const CuentaCorriente = () => {
       await refrescarCuentas();
       
       Swal.fire({
-        title: '✅ Factura generada',
+        title: '✅ Remito generado',
         html: `
           <div class="text-center">
             <p><strong>Cliente:</strong> ${facturaData.cliente}</p>
-            <p><strong>Factura Nº:</strong> ${numeroFactura}</p>
+            <p><strong>Remito Nº:</strong> ${numeroFactura}</p>
             <p><strong>Total:</strong> $${facturaData.total.toFixed(2)}</p>
-            <small class="text-muted">La factura se descargó automáticamente</small>
+            <small class="text-muted">El remito se descargó automáticamente</small>
           </div>
         `,
         icon: 'success',
@@ -559,42 +559,60 @@ const CuentaCorriente = () => {
       
     } catch (error) {
       console.error('Error generando factura:', error);
-      Swal.fire('❌ Error', error.message || 'No se pudo generar la factura', 'error');
+      Swal.fire('❌ Error', error.message || 'No se pudo generar el remito', 'error');
     }
   }
 
   // Función para generar PDF de factura de cliente pagado
-  function generarFacturaPDFClientePagado({ cliente, movimientos, numeroFactura, total }) {
+  function generarFacturaPDFClientePagado({ cliente, movimientos, numeroFactura, total, direccionCliente = '' }) {
     const doc = new jsPDF();
 
     const fecha = new Date();
-    const vencimiento = new Date(fecha);
-    vencimiento.setDate(vencimiento.getDate() + 7);
+
+    // Agregar logo de la empresa
+    try {
+      const logoImg = new Image();
+      logoImg.src = '/logodeferrequinpng.png';
+      // Ajustar dimensiones para mantener proporciones (ancho: 80, alto: 30)
+      doc.addImage(logoImg, 'PNG', 14, 10, 80, 30);
+    } catch (error) {
+      console.log('No se pudo cargar el logo, usando texto alternativo');
+      // Fallback a texto si no se puede cargar la imagen
+      doc.setFontSize(20);
+      doc.setTextColor(255, 107, 53);
+      doc.text('FERREQUIN', 14, 20);
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Distribuciones', 14, 30);
+    }
 
     doc.setFontSize(16);
-    doc.text('FACTURA', 14, 20);
+    doc.text('REMITO', 14, 50);
 
     doc.setFontSize(11);
-    doc.text('Cliente:', 14, 35);
-    doc.text(cliente, 40, 35);
+    doc.text('Cliente:', 14, 65);
+    doc.text(cliente, 40, 65);
 
-    doc.text('Factura Nº:', 140, 30);
-    doc.text(`${numeroFactura}`, 180, 30);
+    // Dirección del cliente si se proporciona
+    if (direccionCliente) {
+      doc.text('Dirección:', 14, 71);
+      doc.text(direccionCliente, 40, 71);
+    }
 
-    doc.text('Fecha:', 140, 36);
-    doc.text(fecha.toLocaleDateString('es-AR'), 180, 36);
+    doc.text('Remito Nº:', 140, 60);
+    doc.text(`${numeroFactura}`, 180, 60);
 
-    doc.text('Vencimiento:', 140, 42);
-    doc.text(vencimiento.toLocaleDateString('es-AR'), 180, 42);
-
-    doc.text('Estado del pago:', 140, 48);
-    doc.text('Pagado', 180, 48);
+    doc.text('Fecha:', 140, 66);
+    doc.text(fecha.toLocaleDateString('es-AR'), 180, 66);
 
     // Preparar datos de la tabla con productos
     const rows = [];
     let subtotalTotal = 0;
     let descuentoTotal = 0;
 
+    // Recopilar todos los items para ordenarlos alfabéticamente
+    const todosLosItems = [];
+    
     movimientos.forEach((m, idx) => {
       const subtotal = Number(m.monto);
       const descuento = Number(m.descuento) || 0;
@@ -609,50 +627,70 @@ const CuentaCorriente = () => {
           const itemMontoDescuento = (itemSubtotal * itemDescuento) / 100;
           const itemTotal = itemSubtotal - itemMontoDescuento;
 
-          rows.push([
-            rows.length + 1,
-            item.nombre || 'Producto',
-            item.cantidad || 1,
-            `${item.unidad || 'unidad'}`,
-            Number(item.precio_venta || item.precio_final || 0).toLocaleString('es-AR'),
-            itemDescuento > 0 ? `${itemDescuento}%` : '—',
-            itemDescuento > 0 ? `(-$${itemMontoDescuento.toLocaleString('es-AR')})` : '—',
-            itemTotal.toLocaleString('es-AR')
-          ]);
+          todosLosItems.push({
+            nombre: item.nombre || 'Producto',
+            cantidad: item.cantidad || 1,
+            unidad: item.unidad || 'unidad',
+            precio: Number(item.precio_venta || item.precio_final || 0),
+            descuento: itemDescuento,
+            montoDescuento: itemMontoDescuento,
+            total: itemTotal
+          });
         });
       } else {
         // Si no tiene items, mostrar el concepto general
-        rows.push([
-          idx + 1,
-          m.concepto || 'Movimiento cuenta corriente',
-          '1',
-          'unidad',
-          subtotal.toLocaleString('es-AR'),
-          descuento > 0 ? `${descuento}%` : '—',
-          descuento > 0 ? `(-$${montoDescuento.toLocaleString('es-AR')})` : '—',
-          totalConDescuento.toLocaleString('es-AR')
-        ]);
+        todosLosItems.push({
+          nombre: m.concepto || 'Movimiento cuenta corriente',
+          cantidad: 1,
+          unidad: 'unidad',
+          precio: subtotal,
+          descuento: descuento,
+          montoDescuento: montoDescuento,
+          total: totalConDescuento
+        });
       }
 
       subtotalTotal += subtotal;
       descuentoTotal += montoDescuento;
     });
 
+    // Ordenar items alfabéticamente
+    todosLosItems.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+    // Crear filas ordenadas
+    todosLosItems.forEach((item, idx) => {
+      rows.push([
+        idx + 1,
+        item.nombre,
+        item.cantidad,
+        item.unidad,
+        item.precio.toLocaleString('es-AR'),
+        item.descuento > 0 ? `${item.descuento}%` : '—',
+        item.descuento > 0 ? `(-$${item.montoDescuento.toLocaleString('es-AR')})` : '—',
+        item.total.toLocaleString('es-AR')
+      ]);
+    });
+
     autoTable(doc, {
-      startY: 60,
-      head: [['#', 'Descripción', 'Cant.', 'Unidad', 'Precio', 'Descuento', 'Monto Descuento', 'Total']],
-      body: rows,
-      styles: { halign: 'center' },
-      headStyles: { fillColor: [230, 230, 230] },
+      startY: 85,
+      head: [['#', 'Descripción de artículo', 'Cantidad', 'Impuesto', 'Precio', 'Descuento', 'Total']],
+      body: rows.map(row => [row[0], row[1], row[2], '—', row[4], row[5], row[7]]), // Reorganizar columnas
+      styles: { 
+        halign: 'center',
+        textColor: [0, 0, 0] // Color negro para el texto
+      },
+      headStyles: { 
+        fillColor: [230, 230, 230],
+        textColor: [0, 0, 0] // Color negro para los encabezados
+      },
       columnStyles: {
         0: { halign: 'center' }, // #
         1: { halign: 'left' },   // Descripción
         2: { halign: 'center' }, // Cantidad
-        3: { halign: 'center' }, // Unidad
+        3: { halign: 'center' }, // Impuesto
         4: { halign: 'right' },  // Precio
-        5: { halign: 'center' }, // Descuento %
-        6: { halign: 'right' },  // Monto descuento
-        7: { halign: 'right' }   // Total
+        5: { halign: 'center' }, // Descuento
+        6: { halign: 'right' }   // Total
       }
     });
 
@@ -660,24 +698,9 @@ const CuentaCorriente = () => {
 
     // Resumen de totales
     doc.setFontSize(12);
-    doc.text(`Subtotal: $ ${subtotalTotal.toLocaleString('es-AR')}`, 120, y + 10);
-    if (descuentoTotal > 0) {
-      doc.text(`Descuento: -$ ${descuentoTotal.toLocaleString('es-AR')}`, 120, y + 18);
-    }
-    doc.text(`Total: $ ${Number(total).toLocaleString('es-AR')}`, 120, y + (descuentoTotal > 0 ? 26 : 18));
+    doc.text(`Total: $ ${Number(total).toLocaleString('es-AR')}`, 150, y + 10);
 
-    doc.setFontSize(11);
-    doc.text('Método de pago:', 14, y + 35);
-    doc.text('Cuenta Corriente:', 14, y + 45);
-    doc.text(`$ ${Number(total).toLocaleString('es-AR')}`, 50, y + 45);
-
-    doc.text('Cantidad pagada:', 14, y + 55);
-    doc.text(`$ ${Number(total).toLocaleString('es-AR')}`, 50, y + 55);
-
-    doc.text('Cantidad adeudada:', 14, y + 65);
-    doc.text('$ 0,00', 50, y + 65);
-
-    doc.save(`factura_cc_${numeroFactura}_${cliente.replace(/\s+/g, '_')}.pdf`);
+    doc.save(`remito_cc_${numeroFactura}_${cliente.replace(/\s+/g, '_')}.pdf`);
   }
 
   return (

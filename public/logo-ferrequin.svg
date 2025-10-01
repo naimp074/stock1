@@ -1,0 +1,16 @@
+<svg width="200" height="80" viewBox="0 0 200 80" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fondo blanco -->
+  <rect width="200" height="80" fill="white"/>
+  
+  <!-- Parte superior naranja del logo (forma de F estilizada) -->
+  <path d="M20 15 L20 25 L60 25 L60 35 L30 35 L30 45 L55 45 L55 55 L30 55 L30 65 L20 65 Z" fill="#FF6B35"/>
+  
+  <!-- Parte inferior gris del logo -->
+  <path d="M20 25 L20 35 L30 35 L30 25 Z" fill="#2C2C2C"/>
+  <path d="M20 35 L20 45 L30 45 L30 35 Z" fill="#2C2C2C"/>
+  <path d="M20 45 L20 55 L30 55 L30 45 Z" fill="#2C2C2C"/>
+  <path d="M20 55 L20 65 L30 65 L30 55 Z" fill="#2C2C2C"/>
+  
+  <!-- Texto FERREQUIN -->
+  <text x="100" y="50" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#FF6B35" text-anchor="middle">FERREQUIN</text>
+</svg>

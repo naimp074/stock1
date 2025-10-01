@@ -12,6 +12,7 @@ const VentasPage = () => {
   const [ventas, setVentas] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [cliente, setCliente] = useState('');
+  const [direccionCliente, setDireccionCliente] = useState('');
   const [carrito, setCarrito] = useState([]);
   const [cantidades, setCantidades] = useState({});
   const [cargando, setCargando] = useState(true);
@@ -125,7 +126,7 @@ const VentasPage = () => {
       );
 
       // Guardar factura PDF
-      generarFacturaPDF({ cliente, items: carrito, total, numeroFactura });
+      generarFacturaPDF({ cliente, items: carrito, total, numeroFactura, direccionCliente });
 
       // Actualizar ventas con número de factura
       const nuevaVenta = {
@@ -142,6 +143,7 @@ const VentasPage = () => {
       // Resetear carrito y cliente
       setCarrito([]);
       setCliente('');
+      setDireccionCliente('');
 
       // Mostrar resumen de dinero ingresado
       Swal.fire({
@@ -163,48 +165,72 @@ const VentasPage = () => {
     }
   }
 
-  function generarFacturaPDF({ cliente, items, total, numeroFactura }) {
+  function generarFacturaPDF({ cliente, items, total, numeroFactura, direccionCliente = '' }) {
     const doc = new jsPDF();
 
     const fecha = new Date();
-    const vencimiento = new Date(fecha);
-    vencimiento.setDate(vencimiento.getDate() + 7);
+
+    // Agregar logo de la empresa
+    try {
+      const logoImg = new Image();
+      logoImg.src = '/logodeferrequinpng.png';
+      // Ajustar dimensiones para mantener proporciones (ancho: 80, alto: 30)
+      doc.addImage(logoImg, 'PNG', 14, 10, 80, 30);
+    } catch (error) {
+      console.log('No se pudo cargar el logo, usando texto alternativo');
+      // Fallback a texto si no se puede cargar la imagen
+      doc.setFontSize(20);
+      doc.setTextColor(255, 107, 53);
+      doc.text('FERREQUIN', 14, 20);
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text('Distribuciones', 14, 30);
+    }
 
     doc.setFontSize(16);
-    doc.text('FACTURA', 14, 20);
+    doc.text('REMITO', 14, 50);
 
     doc.setFontSize(11);
-    doc.text('Cliente:', 14, 35);
-    doc.text(cliente || 'Consumidor Final', 40, 35);
+    doc.text('Cliente:', 14, 65);
+    doc.text(cliente || 'Consumidor Final', 40, 65);
 
-    doc.text('Factura Nº:', 140, 30);
-    doc.text(`${numeroFactura}`, 180, 30);
+    // Dirección del cliente si se proporciona
+    if (direccionCliente) {
+      doc.text('Dirección:', 14, 71);
+      doc.text(direccionCliente, 40, 71);
+    }
 
-    doc.text('Fecha:', 140, 36);
-    doc.text(fecha.toLocaleDateString('es-AR'), 180, 36);
+    doc.text('Remito Nº:', 140, 60);
+    doc.text(`${numeroFactura}`, 180, 60);
 
-    doc.text('Vencimiento:', 140, 42);
-    doc.text(vencimiento.toLocaleDateString('es-AR'), 180, 42);
+    doc.text('Fecha:', 140, 66);
+    doc.text(fecha.toLocaleDateString('es-AR'), 180, 66);
 
-    doc.text('Estado del pago:', 140, 48);
-    doc.text('Pagado', 180, 48);
+    // Ordenar productos alfabéticamente
+    const itemsOrdenados = [...(items || [])].sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-    const cuerpo = (items || []).map((it, idx) => [
+    const cuerpo = itemsOrdenados.map((it, idx) => [
       idx + 1,
       it.nombre,
       it.cantidad,
+      '—', // Impuesto
       Number(it.precio_venta || 0).toLocaleString('es-AR'),
-      '—',
-      '0,00%',
+      '0,00%', // Descuento
       (Number(it.cantidad) * Number(it.precio_venta || 0)).toLocaleString('es-AR'),
     ]);
 
     autoTable(doc, {
-      startY: 60,
-      head: [['#', 'Descripción de artículo', 'Cantidad', 'Precio', 'Impuesto', 'Descuento', 'Total']],
+      startY: 85,
+      head: [['#', 'Descripción de artículo', 'Cantidad', 'Impuesto', 'Precio', 'Descuento', 'Total']],
       body: cuerpo,
-      styles: { halign: 'center' },
-      headStyles: { fillColor: [230, 230, 230] },
+      styles: { 
+        halign: 'center',
+        textColor: [0, 0, 0] // Color negro para el texto
+      },
+      headStyles: { 
+        fillColor: [230, 230, 230],
+        textColor: [0, 0, 0] // Color negro para los encabezados
+      },
     });
 
     const y = doc.lastAutoTable.finalY;
@@ -212,18 +238,7 @@ const VentasPage = () => {
     doc.setFontSize(12);
     doc.text(`Total: $ ${Number(total).toLocaleString('es-AR')}`, 150, y + 10);
 
-    doc.setFontSize(11);
-    doc.text('Método de pago:', 14, y + 20);
-    doc.text('Cash:', 14, y + 30);
-    doc.text(`$ ${Number(total).toLocaleString('es-AR')}`, 50, y + 30);
-
-    doc.text('Cantidad pagada:', 14, y + 40);
-    doc.text(`$ ${Number(total).toLocaleString('es-AR')}`, 50, y + 40);
-
-    doc.text('Cantidad adeudada:', 14, y + 50);
-    doc.text('$ 0,00', 50, y + 50);
-
-    doc.save(`factura_${numeroFactura}.pdf`);
+    doc.save(`remito_${numeroFactura}.pdf`);
   }
 
   // Función para generar factura de una venta existente
@@ -236,13 +251,14 @@ const VentasPage = () => {
         cliente: venta.cliente,
         items: venta.items || [],
         total: venta.total,
-        numeroFactura: numeroFactura
+        numeroFactura: numeroFactura,
+        direccionCliente: venta.direccionCliente || ''
       });
       
-      Swal.fire('✅ Factura generada', `Factura Nº ${numeroFactura} descargada`, 'success');
+      Swal.fire('✅ Remito generado', `Remito Nº ${numeroFactura} descargado`, 'success');
     } catch (error) {
       console.error('Error generando factura:', error);
-      Swal.fire('❌ Error', 'No se pudo generar la factura', 'error');
+      Swal.fire('❌ Error', 'No se pudo generar el remito', 'error');
     }
   }
 
@@ -253,7 +269,7 @@ const VentasPage = () => {
 
         {/* Búsqueda y cliente */}
         <Form className="row g-3 mb-3" onSubmit={e => e.preventDefault()}>
-          <div className="col-md-6">
+          <div className="col-md-4">
             <Form.Label>Buscar producto</Form.Label>
             <Form.Control
               placeholder="Nombre o proveedor"
@@ -261,12 +277,20 @@ const VentasPage = () => {
               onChange={e => setBusqueda(e.target.value)}
             />
           </div>
-          <div className="col-md-6">
+          <div className="col-md-4">
             <Form.Label>Cliente (opcional)</Form.Label>
             <Form.Control
               placeholder="Nombre del cliente"
               value={cliente}
               onChange={e => setCliente(e.target.value)}
+            />
+          </div>
+          <div className="col-md-4">
+            <Form.Label>Dirección del cliente (opcional)</Form.Label>
+            <Form.Control
+              placeholder="Dirección del cliente"
+              value={direccionCliente}
+              onChange={e => setDireccionCliente(e.target.value)}
             />
           </div>
         </Form>
