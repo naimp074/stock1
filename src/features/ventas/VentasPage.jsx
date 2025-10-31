@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Container, Card, Table, Button, Form } from 'react-bootstrap';
+import { Container, Card, Table, Button, Form, Pagination } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -16,6 +16,8 @@ const VentasPage = () => {
   const [carrito, setCarrito] = useState([]);
   const [cantidades, setCantidades] = useState({});
   const [cargando, setCargando] = useState(true);
+  const [paginaActual, setPaginaActual] = useState(1);
+  const [productosPorPagina] = useState(10);
 
   // Número de factura persistente en localStorage
   const [numeroFactura, setNumeroFactura] = useState(() => {
@@ -46,6 +48,17 @@ const VentasPage = () => {
       (p?.proveedor || '').toLowerCase().includes(q)
     );
   }, [productos, busqueda]);
+
+  // Calcular índices para paginación de productos
+  const indiceUltimo = paginaActual * productosPorPagina;
+  const indicePrimero = indiceUltimo - productosPorPagina;
+  const productosPagina = filtrados.slice(indicePrimero, indiceUltimo);
+  const totalPaginas = Math.ceil(filtrados.length / productosPorPagina);
+
+  // Resetear a página 1 cuando cambia la búsqueda
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [busqueda]);
 
   const total = carrito.reduce(
     (acc, it) => acc + Number(it.precio_venta || 0) * Number(it.cantidad || 0),
@@ -310,8 +323,8 @@ const VentasPage = () => {
             <tbody>
               {cargando ? (
                 <tr><td colSpan="5">Cargando…</td></tr>
-              ) : filtrados.length ? (
-                filtrados.map((prod) => (
+              ) : productosPagina.length ? (
+                productosPagina.map((prod) => (
                   <tr key={prod.id}>
                     <td>{prod.nombre}</td>
                     <td className="text-end">{Number(prod.cantidad || 0)}</td>
@@ -341,8 +354,66 @@ const VentasPage = () => {
                 <tr><td colSpan="5" className="text-center">No hay productos</td></tr>
               )}
             </tbody>
-          </Table>
+            </Table>
         </div>
+
+        {/* Paginación de productos */}
+        {!cargando && filtrados.length > productosPorPagina && (
+          <div className="d-flex justify-content-center mt-3">
+            <Pagination>
+              <Pagination.First 
+                onClick={() => setPaginaActual(1)}
+                disabled={paginaActual === 1}
+              />
+              <Pagination.Prev 
+                onClick={() => setPaginaActual(prev => Math.max(1, prev - 1))}
+                disabled={paginaActual === 1}
+              />
+              
+              {[...Array(totalPaginas)].map((_, index) => {
+                const numeroPagina = index + 1;
+                // Mostrar solo algunas páginas alrededor de la actual
+                if (
+                  numeroPagina === 1 ||
+                  numeroPagina === totalPaginas ||
+                  (numeroPagina >= paginaActual - 1 && numeroPagina <= paginaActual + 1)
+                ) {
+                  return (
+                    <Pagination.Item
+                      key={numeroPagina}
+                      active={numeroPagina === paginaActual}
+                      onClick={() => setPaginaActual(numeroPagina)}
+                    >
+                      {numeroPagina}
+                    </Pagination.Item>
+                  );
+                } else if (
+                  numeroPagina === paginaActual - 2 ||
+                  numeroPagina === paginaActual + 2
+                ) {
+                  return <Pagination.Ellipsis key={numeroPagina} />;
+                }
+                return null;
+              })}
+              
+              <Pagination.Next 
+                onClick={() => setPaginaActual(prev => Math.min(totalPaginas, prev + 1))}
+                disabled={paginaActual === totalPaginas}
+              />
+              <Pagination.Last 
+                onClick={() => setPaginaActual(totalPaginas)}
+                disabled={paginaActual === totalPaginas}
+              />
+            </Pagination>
+          </div>
+        )}
+
+        {/* Información de paginación */}
+        {!cargando && filtrados.length > 0 && (
+          <div className="text-center mt-2 text-muted" style={{ color: '#fff' }}>
+            Mostrando {indicePrimero + 1} - {Math.min(indiceUltimo, filtrados.length)} de {filtrados.length} productos
+          </div>
+        )}
 
         {/* Carrito */}
         <h3 className="mt-4">🛒 Carrito</h3>

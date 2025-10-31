@@ -1,6 +1,6 @@
 // src/features/stock/StockPage.jsx
 import React, { useEffect, useState } from 'react';
-import { Container, Card, Form, Button, Table, Image } from 'react-bootstrap';
+import { Container, Card, Form, Button, Table, Image, Pagination } from 'react-bootstrap';
 import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
 
@@ -25,7 +25,7 @@ const StockPage = () => {
     );
   });
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
-  const [editIndex, setEditIndex] = useState(null);
+  const [editId, setEditId] = useState(null);
   const [nuevoProducto, setNuevoProducto] = useState({
     nombre: '',
     costo: '',
@@ -37,6 +37,19 @@ const StockPage = () => {
     imagen: '',
   });
   const [cargando, setCargando] = useState(true);
+  const [paginaActual, setPaginaActual] = useState(1);
+  const [productosPorPagina] = useState(10);
+
+  // Calcular índices para paginación
+  const indiceUltimo = paginaActual * productosPorPagina;
+  const indicePrimero = indiceUltimo - productosPorPagina;
+  const productosPagina = productosFiltrados.slice(indicePrimero, indiceUltimo);
+  const totalPaginas = Math.ceil(productosFiltrados.length / productosPorPagina);
+
+  // Resetear a página 1 cuando cambia la búsqueda
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [busqueda]);
 
   // Cargar desde Supabase al montar
   useEffect(() => {
@@ -77,12 +90,11 @@ const StockPage = () => {
 
       let guardado;
 
-      if (editIndex !== null) {
-        const id = productos[editIndex]?.id;
-        if (!id) throw new Error('No se encontró el ID del producto a editar');
-        guardado = await actualizarProducto(id, payload);
-        const productosActualizados = [...productos];
-        productosActualizados[editIndex] = guardado;
+      if (editId !== null) {
+        guardado = await actualizarProducto(editId, payload);
+        const productosActualizados = productos.map(p => 
+          p.id === editId ? guardado : p
+        );
         setProductos(
           productosActualizados.sort((a, b) =>
             (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' })
@@ -99,7 +111,7 @@ const StockPage = () => {
         Swal.fire('✅ Guardado', 'El producto fue agregado con éxito', 'success');
       }
 
-      setEditIndex(null);
+      setEditId(null);
       setNuevoProducto({
         nombre: '',
         costo: '',
@@ -152,7 +164,7 @@ const StockPage = () => {
     }
   };
 
-  const handleEliminar = (index) => {
+  const handleEliminar = (id) => {
     Swal.fire({
       title: '¿Estás seguro?',
       text: 'No podrás revertir esta acción',
@@ -165,12 +177,26 @@ const StockPage = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          const id = productos[index]?.id;
           if (!id) throw new Error('No se encontró el ID del producto');
           await eliminarProducto(id);
 
-          const productosActualizados = productos.filter((_, i) => i !== index);
+          const productosActualizados = productos.filter(p => p.id !== id);
           setProductos(productosActualizados);
+          
+          // Si se eliminó el último producto de la última página, volver a la página anterior
+          const productosFiltradosActualizados = productosActualizados.filter(p => {
+            const q = busqueda.trim().toLowerCase();
+            if (!q) return true;
+            return (
+              (p?.nombre || '').toLowerCase().includes(q) ||
+              (p?.proveedor || '').toLowerCase().includes(q)
+            );
+          });
+          const nuevaTotalPaginas = Math.ceil(productosFiltradosActualizados.length / productosPorPagina);
+          if (paginaActual > nuevaTotalPaginas && nuevaTotalPaginas > 0) {
+            setPaginaActual(nuevaTotalPaginas);
+          }
+          
           Swal.fire('🗑️ Eliminado', 'El producto fue eliminado', 'success');
         } catch (error) {
           console.error(error);
@@ -180,8 +206,12 @@ const StockPage = () => {
     });
   };
 
-  const handleEditar = (index) => {
-    const p = productos[index];
+  const handleEditar = (id) => {
+    const p = productos.find(prod => prod.id === id);
+    if (!p) {
+      Swal.fire('❌ Error', 'No se encontró el producto', 'error');
+      return;
+    }
     setNuevoProducto({
       nombre: p?.nombre || '',
       costo: p?.precio_costo ?? '',
@@ -192,7 +222,7 @@ const StockPage = () => {
       telefono: p?.telefono ?? '',
       imagen: p?.imagen ?? '',
     });
-    setEditIndex(index);
+    setEditId(id);
     setMostrarFormulario(true);
   };
 
@@ -318,18 +348,19 @@ const StockPage = () => {
               </div>
             )}
             <Button type="submit" variant="primary">
-              {editIndex !== null ? 'Actualizar Producto' : 'Guardar Producto'}
+              {editId !== null ? 'Actualizar Producto' : 'Guardar Producto'}
             </Button>{' '}
             <Button
               variant="secondary"
               onClick={() => {
                 setMostrarFormulario(false);
-                setEditIndex(null);
+                setEditId(null);
                 setNuevoProducto({
                   nombre: '',
                   costo: '',
                   venta: '',
                   cantidad: '',
+                  unidad: 'unidad',
                   proveedor: '',
                   telefono: '',
                   imagen: '',
@@ -369,7 +400,7 @@ const StockPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {productosFiltrados.map((prod, index) => (
+                {productosPagina.map((prod, index) => (
                   <tr key={prod.id || index}>
                     <td>
                       {prod.imagen ? (
@@ -390,14 +421,14 @@ const StockPage = () => {
                         variant="warning"
                         size="sm"
                         className="me-2"
-                        onClick={() => handleEditar(index)}
+                        onClick={() => handleEditar(prod.id)}
                       >
                         Editar
                       </Button>
                       <Button
                         variant="danger"
                         size="sm"
-                        onClick={() => handleEliminar(index)}
+                        onClick={() => handleEliminar(prod.id)}
                       >
                         Eliminar
                       </Button>
@@ -415,6 +446,64 @@ const StockPage = () => {
             </Table>
           )}
         </div>
+
+        {/* Paginación */}
+        {!cargando && productosFiltrados.length > productosPorPagina && (
+          <div className="d-flex justify-content-center mt-3">
+            <Pagination>
+              <Pagination.First 
+                onClick={() => setPaginaActual(1)}
+                disabled={paginaActual === 1}
+              />
+              <Pagination.Prev 
+                onClick={() => setPaginaActual(prev => Math.max(1, prev - 1))}
+                disabled={paginaActual === 1}
+              />
+              
+              {[...Array(totalPaginas)].map((_, index) => {
+                const numeroPagina = index + 1;
+                // Mostrar solo algunas páginas alrededor de la actual
+                if (
+                  numeroPagina === 1 ||
+                  numeroPagina === totalPaginas ||
+                  (numeroPagina >= paginaActual - 1 && numeroPagina <= paginaActual + 1)
+                ) {
+                  return (
+                    <Pagination.Item
+                      key={numeroPagina}
+                      active={numeroPagina === paginaActual}
+                      onClick={() => setPaginaActual(numeroPagina)}
+                    >
+                      {numeroPagina}
+                    </Pagination.Item>
+                  );
+                } else if (
+                  numeroPagina === paginaActual - 2 ||
+                  numeroPagina === paginaActual + 2
+                ) {
+                  return <Pagination.Ellipsis key={numeroPagina} />;
+                }
+                return null;
+              })}
+              
+              <Pagination.Next 
+                onClick={() => setPaginaActual(prev => Math.min(totalPaginas, prev + 1))}
+                disabled={paginaActual === totalPaginas}
+              />
+              <Pagination.Last 
+                onClick={() => setPaginaActual(totalPaginas)}
+                disabled={paginaActual === totalPaginas}
+              />
+            </Pagination>
+          </div>
+        )}
+
+        {/* Información de paginación */}
+        {!cargando && productosFiltrados.length > 0 && (
+          <div className="text-center mt-2 text-muted">
+            Mostrando {indicePrimero + 1} - {Math.min(indiceUltimo, productosFiltrados.length)} de {productosFiltrados.length} productos
+          </div>
+        )}
       </Card>
     </Container>
   );
